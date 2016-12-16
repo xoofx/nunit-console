@@ -121,11 +121,10 @@ namespace NUnit.Agent
             engine.Services.Add(new DomainManager());
             engine.Services.Add(new InProcessTestRunnerFactory());
             engine.Services.Add(new DriverService());
-            //engine.Services.Add( new TestLoader() );
 
             // Initialize Services
-            log.Info("Initializing Services");
-            engine.Initialize();
+            log.Info("Starting Services");
+            engine.Services.ServiceManager.StartServices();
 
             Channel = ServerUtilities.GetTcpChannel();
 

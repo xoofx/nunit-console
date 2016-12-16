@@ -65,16 +65,15 @@ namespace NUnit.Engine
             get
             {
                 if(!Services.ServiceManager.ServicesInitialized)
-                    Initialize();
+                    InitializeDefaultServices();
 
                 return Services;
             }
         }
 
         /// <summary>
-        /// Initialize the engine. This includes initializing mono addins,
-        /// setting the trace level and creating the standard set of services 
-        /// used in the Engine.
+        /// Initialize the engine, setting the trace level and 
+        /// creating the standard set of services.
         /// 
         /// This interface is not normally called by user code. Programs linking 
         /// only to the nunit.engine.api assembly are given a
@@ -82,7 +81,7 @@ namespace NUnit.Engine
         /// that link directly to nunit.engine usually do so
         /// in order to perform custom initialization.
         /// </summary>
-        public void Initialize()
+        public void InitializeDefaultServices()
         {
             SettingsService settingsService = new SettingsService(true);
 
@@ -119,7 +118,7 @@ namespace NUnit.Engine
         public ITestRunner GetRunner(TestPackage package)
         {
             if(!Services.ServiceManager.ServicesInitialized)
-                Initialize();
+                InitializeDefaultServices();
 
             return new Runners.MasterTestRunner(Services, package);
         }

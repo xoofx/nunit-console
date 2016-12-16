@@ -65,7 +65,7 @@ namespace NUnit.Engine
         /// that link directly to nunit.engine usually do so
         /// in order to perform custom initialization.
         /// </summary>
-        void Initialize();
+        void InitializeDefaultServices();
 
         /// <summary>
         /// Returns a test runner instance for use by clients in discovering,
