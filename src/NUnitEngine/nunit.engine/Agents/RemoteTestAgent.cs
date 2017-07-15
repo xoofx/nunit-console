@@ -74,6 +74,9 @@ namespace NUnit.Engine.Agents
             get { return System.Diagnostics.Process.GetCurrentProcess().Id; }
         }
 
+        public bool WaitAfterStop { get; set; }
+        public int ShutdownDelay { get; set; }
+
         #endregion
 
         #region Public Methods
@@ -130,15 +133,26 @@ namespace NUnit.Engine.Agents
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 // Wait till all messages are finished
-                _currentMessageCounter.WaitForAllCurrentMessages();
+                ShutdownWait();
 
                 // Shut down nicely
                 _channel.StopListening(null);
+                
+                if (WaitAfterStop) ShutdownWait();
+
                 ChannelServices.UnregisterChannel(_channel);
+
+                if (WaitAfterStop) ShutdownWait();
 
                 // Signal to other threads that it's okay to exit the process or start a new channel, etc.
                 stopSignal.Set();
             });
+        }
+
+        private void ShutdownWait()
+        {
+            _currentMessageCounter.WaitForAllCurrentMessages();
+            if (ShutdownDelay != 0) Thread.Sleep(ShutdownDelay);
         }
 
         public bool WaitForStop(int timeout)

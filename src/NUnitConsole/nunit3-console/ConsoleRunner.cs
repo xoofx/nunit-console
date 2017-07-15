@@ -437,6 +437,12 @@ namespace NUnit.ConsoleRunner
             if (options.PauseBeforeRun)
                 package.AddSetting(FrameworkPackageSettings.PauseBeforeRun, true);
 
+            if (options.RemotingWaitAfterStop)
+                package.AddSetting("RemotingWaitAfterStop", true);
+
+            if (options.RemotingShutdownDelay != 0)
+                package.AddSetting("RemotingShutdownDelay", options.RemotingShutdownDelay);
+
             if (options.PrincipalPolicy != null)
                 package.AddSetting(EnginePackageSettings.PrincipalPolicy, options.PrincipalPolicy);
 

@@ -151,6 +151,12 @@ namespace NUnit.Engine.Services
                 agentArgs += " --debug-agent";
             if (traceLevel != "Off")
                 agentArgs += " --trace:" + traceLevel;
+            if (package.GetSetting("RemotingWaitAfterStop", false))
+                agentArgs += " --remoting-wait-after-stop";
+            var shutdownDelay = package.GetSetting("RemotingShutdownDelay", 0);
+            if (shutdownDelay != 0)
+                agentArgs += " --remoting-wait-after-stop=" + shutdownDelay;
+
 
             log.Info("Getting {0} agent for use under {1}", useX86Agent ? "x86" : "standard", targetRuntime);
 

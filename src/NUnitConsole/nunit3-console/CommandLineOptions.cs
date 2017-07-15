@@ -108,6 +108,10 @@ namespace NUnit.Common
 
         public bool WaitBeforeExit { get; private set; }
 
+        public bool RemotingWaitAfterStop { get; private set; }
+
+        public int RemotingShutdownDelay { get; private set; }
+
         // Output Control
 
         public string ConsoleEncoding { get; private set; }
@@ -323,6 +327,12 @@ namespace NUnit.Common
 
             this.Add("wait", "Wait for input before closing console window.",
                 v => WaitBeforeExit = v != null);
+
+            this.Add("remoting-wait-after-stop", "https://github.com/nunit/nunit-console/issues/255#issuecomment-315367026",
+                v => RemotingWaitAfterStop = v != null);
+
+            this.Add("remoting-shutdown-delay=", "https://github.com/nunit/nunit-console/issues/255#issuecomment-315367026",
+                v => RemotingShutdownDelay = RequiredInt(v, "--remoting-shutdown-delay"));
 
             // Output Control
             this.Add("work=", "{PATH} of the directory to use for output files. If not specified, defaults to the current directory.",

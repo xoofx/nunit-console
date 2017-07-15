@@ -52,6 +52,9 @@ namespace NUnit.Agent
 
             InternalTraceLevel traceLevel = InternalTraceLevel.Off;
 
+            var remotingWaitAfterStop = false;
+            var remotingShutdownDelay = 0;
+
             for (int i = 2; i < args.Length; i++)
             {
                 string arg = args[i];
@@ -71,6 +74,14 @@ namespace NUnit.Agent
                 {
                     int agencyProcessId = int.Parse(arg.Substring(6));
                     AgencyProcess = Process.GetProcessById(agencyProcessId);
+                }
+                else if (arg == "--remoting-wait-after-stop")
+                {
+                    remotingWaitAfterStop = true;
+                }
+                else if (arg.StartsWith("--remoting-wait-after-stop="))
+                {
+                    remotingShutdownDelay = int.Parse(arg.Substring(27));
                 }
             }
 
@@ -122,7 +133,11 @@ namespace NUnit.Agent
             engine.Initialize();
 
             log.Info("Starting RemoteTestAgent");
-            Agent = new RemoteTestAgent(AgentId, AgencyUrl, engine.Services);
+            Agent = new RemoteTestAgent(AgentId, AgencyUrl, engine.Services)
+            {
+                WaitAfterStop = remotingWaitAfterStop,
+                ShutdownDelay = remotingShutdownDelay
+            };
 
             try
             {
