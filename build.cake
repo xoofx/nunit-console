@@ -1,5 +1,7 @@
 #addin "Cake.FileHelpers"
 
+#load "packaging/packaging.cake"
+
 //////////////////////////////////////////////////////////////////////
 // ARGUMENTS
 //////////////////////////////////////////////////////////////////////
@@ -106,10 +108,16 @@ Teardown(context =>
 //////////////////////////////////////////////////////////////////////
 
 Task("Clean")
-    .Description("Deletes all files in the BIN directory")
+    .Description("Deletes all binaries and packaging files")
     .Does(() =>
     {
         CleanDirectory(BIN_DIR);
+        CleanDirectory(PACKAGE_DIR);
+        CleanDirectory(IMAGE_DIR);
+        CleanDirectory(RUNNER_PACKAGES_DIR);
+        CleanDirectory(EXTENSION_PACKAGES_DIR);
+        CleanDirectory(PACKAGE_IMAGE_DIR);
+        CleanDirectory(IMAGE_ADDINS_DIR);
     });
 
 
@@ -676,7 +684,8 @@ Task("Appveyor")
     .Description("Builds, tests and packages on AppVeyor")
     .IsDependentOn("Build")
     .IsDependentOn("Test")
-    .IsDependentOn("Package");
+    .IsDependentOn("Package")
+    .IsDependentOn("PackageZipAndMsi");
 
 Task("Travis")
     .Description("Builds and tests on Travis")

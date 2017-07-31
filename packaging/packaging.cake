@@ -1,21 +1,6 @@
-#addin "nuget:?package=Cake.ExtendedNuGet&version=1.0.0.22"
-#addin "nuget:?package=NuGet.Core&version=2.12.0"
+#addin "nuget:?package=Cake.ExtendedNuGet&version=1.0.0.24"
+#addin "nuget:?package=NuGet.Core&version=2.14.0"
 #addin "Cake.FileHelpers"
-
-
-//////////////////////////////////////////////////////////////////////
-// ARGUMENTS
-//////////////////////////////////////////////////////////////////////
-
-var target = Argument("target", "Default");
-var configuration = Argument("configuration", "Release");
-
-//////////////////////////////////////////////////////////////////////
-// VERSION
-//////////////////////////////////////////////////////////////////////
-
-var version = "3.7.0";
-var displayVersion = "3.7.0";
 
 //////////////////////////////////////////////////////////////////////
 // NUGET PACKAGES
@@ -39,30 +24,18 @@ var EXTENSION_PACKAGES = new []
 // FILE PATHS
 //////////////////////////////////////////////////////////////////////
 
-var ROOT_DIR = Context.Environment.WorkingDirectory.FullPath + "/";
+var ROOT_DIR = Context.Environment.WorkingDirectory.FullPath + "/packaging/";
 var WIX_PROJ = ROOT_DIR + "nunit/nunit.wixproj";
 var RESOURCES_DIR = ROOT_DIR + "resources/";
 var RUNNER_PACKAGES_DIR = ROOT_DIR + "runner-packages/";
 var EXTENSION_PACKAGES_DIR = ROOT_DIR + "extension-packages/";
-var DISTRIBUTION_DIR = ROOT_DIR + "distribution/";
-var IMAGE_DIR = ROOT_DIR + "image/";
-var IMAGE_ADDINS_DIR = IMAGE_DIR + "addins/";
-var ZIP_FILE = string.Format("{0}NUnit.Console-{1}.zip", DISTRIBUTION_DIR, version);
-var COMPONENTS_FILE_PATH = IMAGE_DIR + "COMPONENTS.txt";
+var PACKAGE_IMAGE_DIR = ROOT_DIR + "image/";
+var IMAGE_ADDINS_DIR = PACKAGE_IMAGE_DIR + "addins/";
+var COMPONENTS_FILE_PATH = PACKAGE_IMAGE_DIR + "COMPONENTS.txt";
 
 //////////////////////////////////////////////////////////////////////
 // TASK
 //////////////////////////////////////////////////////////////////////
-
-Task("Clean")
-.Does(() =>
-{
-    CleanDirectory(RUNNER_PACKAGES_DIR);
-    CleanDirectory(EXTENSION_PACKAGES_DIR);
-    CleanDirectory(IMAGE_DIR);
-    CleanDirectory(IMAGE_ADDINS_DIR);
-    CleanDirectory(DISTRIBUTION_DIR);
-});
 
 Task("FetchPackages")
 .IsDependentOn("Clean")
@@ -83,15 +56,15 @@ Task("FetchPackages")
     }
 });
 
-Task("CreateImage")
+Task("CreatePackagingImage")
 .IsDependentOn("Clean")
 .IsDependentOn("FetchPackages")
 .Does(() =>
 {
-    CopyDirectory(RESOURCES_DIR, IMAGE_DIR);
+    CopyDirectory(RESOURCES_DIR, PACKAGE_IMAGE_DIR);
 
     foreach(var packageDir in GetAllDirectories(RUNNER_PACKAGES_DIR))
-		CopyPackageContents(packageDir, IMAGE_DIR);
+		CopyPackageContents(packageDir, PACKAGE_IMAGE_DIR);
 
     foreach(var packageDir in GetAllDirectories(EXTENSION_PACKAGES_DIR))
 		CopyPackageContents(packageDir, IMAGE_ADDINS_DIR);
@@ -120,16 +93,16 @@ Task("WriteComponentsFile")
 
 Task("PackageMsi")
 .IsDependentOn("WriteComponentsFile")
-.IsDependentOn("CreateImage")
+.IsDependentOn("CreatePackagingImage")
 .Does(() =>
 {
     MSBuild(WIX_PROJ, new MSBuildSettings()
         .WithTarget("Rebuild")
         .SetConfiguration(configuration)
-        .WithProperty("Version", version)
-        .WithProperty("DisplayVersion", displayVersion)
-        .WithProperty("OutDir", DISTRIBUTION_DIR)
-        .WithProperty("Image", IMAGE_DIR)
+        .WithProperty("Version", packageVersion)
+        .WithProperty("DisplayVersion", packageVersion)
+        .WithProperty("OutDir", PACKAGE_DIR)
+        .WithProperty("Image", PACKAGE_IMAGE_DIR)
         .SetMSBuildPlatform(MSBuildPlatform.x86)
         .SetNodeReuse(false)
         );
@@ -137,21 +110,16 @@ Task("PackageMsi")
 
 Task("PackageZip")
 .IsDependentOn("WriteComponentsFile")
-.IsDependentOn("CreateImage")
+.IsDependentOn("CreatePackagingImage")
 .Does(() =>
 {
-    Zip(IMAGE_DIR, ZIP_FILE);
+    var zipFileName = string.Format("{0}NUnit.Console-{1}.zip", PACKAGE_DIR, packageVersion);
+    Zip(PACKAGE_IMAGE_DIR, zipFileName);
 });
 
-Task("PackageAll")
+Task("PackageZipAndMsi")
 .IsDependentOn("PackageMsi")
 .IsDependentOn("PackageZip");
-
-Task("Appveyor")
-.IsDependentOn("PackageAll");
-
-Task("Default")
-.IsDependentOn("PackageAll");
 
 //////////////////////////////////////////////////////////////////////
 // HELPER METHODS
@@ -167,9 +135,3 @@ public void CopyPackageContents(DirectoryPath packageDir, DirectoryPath outDir)
     var files = GetFiles(packageDir + "/tools/*");
     CopyFiles(files.Where(f => f.GetExtension() != ".addins"), outDir);
 }
-
-//////////////////////////////////////////////////////////////////////
-// EXECUTION
-//////////////////////////////////////////////////////////////////////
-
-RunTarget(target);
