@@ -15,4 +15,5 @@ matrix:
   fast_finish: true
 
 script:
+  - git fetch --unshallow
   - ./build.sh --target "Travis" --configuration "Release"

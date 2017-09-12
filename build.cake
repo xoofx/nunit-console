@@ -1,3 +1,8 @@
+#tool nuget:?package=GitVersion.CommandLine
+#addin "Cake.FileHelpers"
+
+using System.Text.RegularExpressions;
+
 //////////////////////////////////////////////////////////////////////
 // ARGUMENTS
 //////////////////////////////////////////////////////////////////////
@@ -14,6 +19,9 @@ var ErrorDetail = new List<string>();
 //////////////////////////////////////////////////////////////////////
 // SET PACKAGE VERSION
 //////////////////////////////////////////////////////////////////////
+
+GitVersion GitVersionInfo { get; set; }
+BuildInfo Build { get; set; }
 
 var version = "3.8.0";
 var modifier = "";
@@ -39,10 +47,10 @@ var DOTNETCORE_TEST_ASSEMBLY = "src/NUnitEngine/nunit.engine.tests.netstandard/b
 
 // Package sources for nuget restore
 var PACKAGE_SOURCE = new string[]
-	{
-		"https://www.nuget.org/api/v2",
-		"https://www.myget.org/F/nunit/api/v2"
-	};
+    {
+        "https://www.nuget.org/api/v2",
+        "https://www.myget.org/F/nunit/api/v2"
+    };
 
 // Test Runner
 var NUNIT3_CONSOLE = BIN_DIR + "nunit3-console.exe";
@@ -58,6 +66,18 @@ bool IsDotNetCoreInstalled = false;
 //////////////////////////////////////////////////////////////////////
 Setup(context =>
 {
+    var settings = new GitVersionSettings();
+    //if (!BuildSystem.IsLocalBuild)
+    //{
+    //    settings.UpdateAssemblyInfo = true;
+    //    settings.UpdateAssemblyInfoFilePath = "src/CommonAssemblyInfo.cs";
+    //}
+
+    GitVersionInfo = GitVersion(settings);
+    Build = new BuildInfo(GitVersionInfo);
+
+    Information("BuildInfo ==>\n" + Build.Dump());
+
     if (BuildSystem.IsRunningOnAppVeyor)
     {
         var buildNumber = AppVeyor.Environment.Build.Number.ToString("00000");
@@ -121,7 +141,7 @@ Task("InitializeBuild")
     .Does(() =>
     {
         Information("Restoring NuGet packages");
-		NuGetRestore(SOLUTION_FILE, new NuGetRestoreSettings
+        NuGetRestore(SOLUTION_FILE, new NuGetRestoreSettings
         {
             Source = PACKAGE_SOURCE,
             Verbosity = NuGetVerbosity.Detailed
@@ -132,7 +152,7 @@ Task("InitializeBuild")
             Information("Restoring .NET Core packages");
             DotNetCoreRestore(DOTNETCORE_SOLUTION_FILE);
         }
-	});
+    });
 
 //////////////////////////////////////////////////////////////////////
 // BUILD ENGINE
@@ -289,7 +309,7 @@ var BinFiles = new FilePath[]
     "ConsoleTests.nunit",
     "EngineTests.nunit",
     "mock-assembly.dll",
-	"notest-assembly.dll",
+    "notest-assembly.dll",
     "Mono.Cecil.dll",
     "nunit-agent-x86.exe",
     "nunit-agent-x86.exe.config",
@@ -408,18 +428,18 @@ Task("PackageConsole")
 // image directory. I think this is the direction we want to go
 // for all the different packages, but it's for a separate change.
 Task("PackageChocolatey")
-	.Description("Creates chocolatey packages of the console runner")
-	.IsDependentOn("Build")
-	.Does(() =>
-	{
-		EnsureDirectoryExists(PACKAGE_DIR);
-
-		ChocolateyPack("choco/nunit-console-runner.nuspec",
-			new ChocolateyPackSettings()
-			{
-				Version = packageVersion,
-				OutputDirectory = PACKAGE_DIR,
-				Files = new [] {
+    .Description("Creates chocolatey packages of the console runner")
+    .IsDependentOn("Build")
+    .Does(() =>
+    {
+        EnsureDirectoryExists(PACKAGE_DIR);
+        
+        ChocolateyPack("choco/nunit-console-runner.nuspec", 
+            new ChocolateyPackSettings()
+            {
+                Version = packageVersion,
+                OutputDirectory = PACKAGE_DIR,
+                Files = new [] {
                     new ChocolateyNuSpecContent { Source = PROJECT_DIR + "LICENSE.txt", Target = "tools" },
                     new ChocolateyNuSpecContent { Source = PROJECT_DIR + "NOTICES.txt", Target = "tools" },
                     new ChocolateyNuSpecContent { Source = PROJECT_DIR + "CHANGES.txt", Target = "tools" },
@@ -438,20 +458,20 @@ Task("PackageChocolatey")
                     new ChocolateyNuSpecContent { Source = BIN_DIR + "nunit.engine.dll", Target="tools" },
                     new ChocolateyNuSpecContent { Source = BIN_DIR + "Mono.Cecil.dll", Target="tools" }
                 }
-			});
-
-		ChocolateyPack("choco/nunit-console-with-extensions.nuspec",
-			new ChocolateyPackSettings()
-			{
-				Version = packageVersion,
-				OutputDirectory = PACKAGE_DIR,
+            });
+        
+        ChocolateyPack("choco/nunit-console-with-extensions.nuspec", 
+            new ChocolateyPackSettings()
+            {
+                Version = packageVersion,
+                OutputDirectory = PACKAGE_DIR,
                 Files = new [] {
                     new ChocolateyNuSpecContent { Source = PROJECT_DIR + "LICENSE.txt", Target = "tools" },
                     new ChocolateyNuSpecContent { Source = PROJECT_DIR + "NOTICES.txt", Target = "tools" },
                     new ChocolateyNuSpecContent { Source = CHOCO_DIR + "VERIFICATION.txt", Target = "tools" }
                 }
-			});
-	});
+            });
+    });
 
 //////////////////////////////////////////////////////////////////////
 // PACKAGE NETSTANDARD ENGINE
@@ -529,7 +549,7 @@ void BuildProject(string projectPath, string configuration)
             .SetMSBuildPlatform(MSBuildPlatform.Automatic)
             .SetVerbosity(Verbosity.Minimal)
             .SetNodeReuse(false)
-			.SetPlatformTarget(PlatformTarget.MSIL)
+            .SetPlatformTarget(PlatformTarget.MSIL)
         );
     }
     else
@@ -580,6 +600,80 @@ void RunTest(FilePath exePath, DirectoryPath workingDir, string arguments, strin
 }
 
 //////////////////////////////////////////////////////////////////////
+// BUILD INFO
+//////////////////////////////////////////////////////////////////////
+
+class BuildInfo
+{
+    public BuildInfo(GitVersion gitVersion)
+    {
+        Version = gitVersion.MajorMinorPatch;
+        BranchName = gitVersion.BranchName;
+        BuildNumber = gitVersion.CommitsSinceVersionSourcePadded;
+
+        // Initially assume it's neither master nor a PR
+        IsMaster = false;
+        IsPullRequest = false;
+        PullRequestNumber = string.Empty;
+
+        if (BranchName == "master")
+        {
+            IsMaster = true;
+            PreReleaseSuffix = "dev-" + BuildNumber;
+        }
+        else
+        {
+            var re = new Regex(@"(pull|pull\-requests?|pr)[/-](\d*)[/-]");
+            var match = re.Match(BranchName);
+
+            if (match.Success)
+            {
+                IsPullRequest = true;
+                PullRequestNumber = match.Groups[2].Value;
+                PreReleaseSuffix = "pr-" + PullRequestNumber + "-" + BuildNumber;
+            }
+            else
+            {
+                PreReleaseSuffix = "ci-" + BuildNumber + "-" + Regex.Replace(BranchName, "[^0-9A-Za-z-]+", "-");
+                // Nuget limits "special version part" to 20 chars.
+                if (PreReleaseSuffix.Length > 20)
+                    PreReleaseSuffix = PreReleaseSuffix.Substring(0, 20);
+            }
+        }
+
+        PackageVersion = Version + "-" + PreReleaseSuffix;
+
+        AssemblyVersion = gitVersion.AssemblySemVer;
+        AssemblyFileVersion = PackageVersion;
+    }
+
+    public string BranchName { get; private set; }
+    public string Version { get; private set; }
+    public bool IsMaster { get; private set; }
+    public bool IsPullRequest { get; private set; }
+    public string PullRequestNumber { get; private set; }
+    public string BuildNumber { get; private set; }
+    public string PreReleaseSuffix { get; private set; }
+    public string PackageVersion { get; private set; }
+
+    public string AssemblyVersion { get; private set; }
+    public string AssemblyFileVersion { get; private set; }
+
+    public string Dump()
+    {
+        var NL = Environment.NewLine;
+        return "           BranchName: " + BranchName + NL +
+               "              Version: " + Version + NL +
+               "     PreReleaseSuffix: " + PreReleaseSuffix + NL +
+               "        IsPullRequest: " + IsPullRequest.ToString() + NL +
+               "    PullRequestNumber: " + PullRequestNumber + NL +
+               "      AssemblyVersion: " + AssemblyVersion + NL +
+               "  AssemblyFileVersion: " + AssemblyFileVersion + NL +
+               "      Package Version: " + PackageVersion + NL;
+    }
+}
+
+//////////////////////////////////////////////////////////////////////
 // TASK TARGETS
 //////////////////////////////////////////////////////////////////////
 
@@ -606,7 +700,7 @@ Task("Package")
     .IsDependentOn("PackageEngine")
     .IsDependentOn("PackageConsole")
     .IsDependentOn("PackageNetStandardEngine")
-	.IsDependentOn("PackageChocolatey");
+    .IsDependentOn("PackageChocolatey");
 
 Task("Appveyor")
     .Description("Builds, tests and packages on AppVeyor")
