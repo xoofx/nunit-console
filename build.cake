@@ -1,5 +1,4 @@
 #tool nuget:?package=GitVersion.CommandLine
-#addin "Cake.FileHelpers"
 
 using System.Text.RegularExpressions;
 
